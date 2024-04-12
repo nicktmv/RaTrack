@@ -26,7 +26,7 @@ def init_model(args):
         # net.apply(weights_init)
             
         if args.eval or args.load_checkpoint:
-            if args.model_path is '':
+            if not args.model_path or args.model_path == '':
                 model_path = 'checkpoints' + '/' + args.exp_name + '/models/model.best.t7'
             else:
                 model_path = args.model_path

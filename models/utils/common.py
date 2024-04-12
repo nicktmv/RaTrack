@@ -14,7 +14,7 @@ class FlowEmbedding(nn.Module):
         self.corr_func = corr_func
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
-        if corr_func is 'concat':
+        if corr_func == 'concat':
             last_channel = in_channel * 2 + 3
         for out_channel in mlp:
             self.mlp_convs.append(nn.Conv2d(last_channel, out_channel, 1, bias=False))
