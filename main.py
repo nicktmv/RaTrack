@@ -38,6 +38,7 @@ def _init_(args):
 
 
 def eval(args, net, train_loader, test_loader, textio):
+    print("Debug: net =", net)
     net.eval()
     with torch.no_grad():
         if args.model == 'track4d':
