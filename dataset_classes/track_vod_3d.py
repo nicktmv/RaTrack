@@ -19,6 +19,7 @@ import matplotlib
 # matplotlib.use('TkAgg', force=True)
 import matplotlib.pyplot as plt
 
+
 # Load: raw + label + ego
 
 class TrackingDataVOD(Dataset):
@@ -31,9 +32,10 @@ class TrackingDataVOD(Dataset):
         self.index_incre = 0
         self.is_new_seq = True
 
-        test = ['delft_7','delft_8','delft_16','delft_18','delft_20','delft_21','delft_25']
-        val = ['delft_1','delft_10','delft_14','delft_22']
-        train = ['delft_2','delft_3','delft_4','delft_6','delft_9','delft_11','delft_12','delft_13','delft_19','delft_23','delft_24','delft_26','delft_27']
+        test = ['delft_7', 'delft_8', 'delft_16', 'delft_18', 'delft_20', 'delft_21', 'delft_25']
+        val = ['delft_1', 'delft_10', 'delft_14', 'delft_22']
+        train = ['delft_2', 'delft_3', 'delft_4', 'delft_6', 'delft_9', 'delft_11', 'delft_12', 'delft_13', 'delft_19',
+                 'delft_23', 'delft_24', 'delft_26', 'delft_27']
         self.clips_dir = "./clips"
 
         if self.eval:
@@ -44,7 +46,6 @@ class TrackingDataVOD(Dataset):
         self.current_last = 0
         self.clip_idx = -1
         self.current_frame = 0
-
 
     def __getitem__(self, index):
 
@@ -65,17 +66,17 @@ class TrackingDataVOD(Dataset):
         while True:
             try:
                 kitti_locations = VodTrackLocations(root_dir=self.dataset_path,
-                                                output_dir=self.dataset_path,
-                                                frame_set_path="",
-                                                pred_dir="",
-                                                )
-                
+                                                    output_dir=self.dataset_path,
+                                                    frame_set_path="",
+                                                    pred_dir="",
+                                                    )
+
                 frame_data_0 = FrameDataLoader(kitti_locations=kitti_locations,
-                                            frame_number=str(self.current_frame+1).zfill(5))
+                                               frame_number=str(self.current_frame + 1).zfill(5))
                 frame_data_1 = FrameDataLoader(kitti_locations=kitti_locations,
-                                            frame_number=str(self.current_frame).zfill(5))
+                                               frame_number=str(self.current_frame).zfill(5))
                 frame_data_last = FrameDataLoader(kitti_locations=kitti_locations,
-                                            frame_number=str(self.current_frame-1).zfill(5))
+                                                  frame_number=str(self.current_frame - 1).zfill(5))
 
                 raw_pc0 = frame_data_0.radar_data[:, :3]
                 raw_pc1 = frame_data_1.radar_data[:, :3]
@@ -86,7 +87,7 @@ class TrackingDataVOD(Dataset):
                 transforms0 = FrameTransformMatrix(frame_data_0)
                 transforms1 = FrameTransformMatrix(frame_data_1)
                 transforms_last = FrameTransformMatrix(frame_data_last)
-                
+
                 raw_pc_last_lidar = frame_data_last.lidar_data[:, :3]
                 raw_pc0_lidar = frame_data_0.lidar_data[:, :3]
                 raw_pc1_lidar = frame_data_1.lidar_data[:, :3]
@@ -94,11 +95,11 @@ class TrackingDataVOD(Dataset):
                 n0_ = raw_pc_last_lidar.shape[0]
                 pts_3d_hom0_ = np.hstack((raw_pc_last_lidar, np.ones((n0_, 1))))
                 raw_pc_last_lidar = homogeneous_transformation(pts_3d_hom0_, transforms_last.t_lidar_radar)
-                
+
                 n1_ = raw_pc0_lidar.shape[0]
                 pts_3d_hom1_ = np.hstack((raw_pc0_lidar, np.ones((n1_, 1))))
                 raw_pc0_lidar = homogeneous_transformation(pts_3d_hom1_, transforms0.t_lidar_radar)
-                
+
                 n2_ = raw_pc1_lidar.shape[0]
                 pts_3d_hom2_ = np.hstack((raw_pc1_lidar, np.ones((n2_, 1))))
                 raw_pc1_lidar = homogeneous_transformation(pts_3d_hom2_, transforms1.t_lidar_radar)
@@ -107,16 +108,17 @@ class TrackingDataVOD(Dataset):
                 odom_cam_1 = transforms1.t_odom_camera
                 cam_radar_0 = transforms0.t_camera_radar
                 cam_radar_1 = transforms1.t_camera_radar
-                odom_radar_0 = np.dot(odom_cam_0,cam_radar_0)
-                odom_radar_2 = np.dot(odom_cam_1,cam_radar_1)
-                ego_motion = np.dot(np.linalg.inv(odom_radar_0), odom_radar_2) 
+                odom_radar_0 = np.dot(odom_cam_0, cam_radar_0)
+                odom_radar_2 = np.dot(odom_cam_1, cam_radar_1)
+                ego_motion = np.dot(np.linalg.inv(odom_radar_0), odom_radar_2)
 
                 comp_hom = np.hstack((raw_pc0, np.ones((raw_pc0.shape[0], 1))))
                 raw_pc0_comp = np.dot(comp_hom, np.linalg.inv(ego_motion.T))
 
                 curr_idx = self.current_frame + 1
                 self.current_frame += 1
-                return raw_pc0, raw_pc1, features0, features1, raw_pc0_comp, curr_idx, self.clips[self.clip_idx], ego_motion, raw_pc_last_lidar, raw_pc0_lidar, raw_pc1_lidar, new_seq
+                return raw_pc0, raw_pc1, features0, features1, raw_pc0_comp, curr_idx, self.clips[
+                    self.clip_idx], ego_motion, raw_pc_last_lidar, raw_pc0_lidar, raw_pc1_lidar, new_seq
 
             except:
                 self.current_frame += 1
