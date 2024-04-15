@@ -241,7 +241,7 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode='train'):
                 plt.ylim([30, -30])
                 plt.show()
                 plt.axis('off')
-                Path("./results_vis/").mkdir(parents=True, exist_ok=True)
+                Path("../data/results_vis/").mkdir(parents=True, exist_ok=True)
                 plt.savefig("./results_vis/seq{}.png".format(str(index)), dpi=200)
                 plt.close()
 

@@ -20,7 +20,7 @@ num_workers: 1
 ## dataset
 eval: True
 dataset: vod
-dataset_path: ENTRE YOUR DATASET PATH HERE
+dataset_path: 'D:\four-d-radar-thesis\data\view_of_delft_PUBLIC'
 aug: True
 npoints: 512
 start_seq: 0
@@ -34,6 +34,6 @@ min_obj_points: 2
 
 
 ## checkpoint
-load_checkpoint: False
-model_path: ''
+load_checkpoint: True
+model_path: 'checkpoint/track4d_radar/models/model.last.t7'
 continue_model: False
