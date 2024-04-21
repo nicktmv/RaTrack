@@ -482,7 +482,7 @@ BenchmarkDotNet.Artifacts/
 # .NET Core
 project.lock.json
 project.fragment.lock.json
-artifacts/
+#artifacts/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
@@ -808,7 +808,11 @@ FodyWeavers.xsd
 # End of https://www.toptal.com/developers/gitignore/api/windows,linux,macos,libreoffice,microsoftoffice,pycharm,visualstudio,visualstudiocode,python,jupyternotebooks
 
 
-checkpoints/
+#checkpoints/
 results_track4d_radar/
 vod_vis_lidar/
 vod_vis_radar/
+
+artifacts/2024*
+!artifacts/eval/eval-flow-metrics.csv
+!artifacts/eval/eval-segmentation-metrics.csv

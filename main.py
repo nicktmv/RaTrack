@@ -5,7 +5,7 @@ import os
 import warnings
 import logging
 from datetime import datetime
-
+from os.path import join
 import torch
 import torch.optim as optim
 import numpy as np
@@ -67,9 +67,11 @@ def eval_model(args, net, train_loader):
 
         seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        folder_results = os.path.join("checkpoints", args.exp_name, "results")
-        save_json_list_to_csv( [seg_met], os.path.join(folder_results, "segmentation-metrics.csv"))
-        save_json_list_to_csv([flow_met], os.path.join(folder_results, "flow-metrics.csv"))
+        folder_results = "./artifacts/eval/"
+        save_json_list_to_csv(
+            [seg_met], join(folder_results, "eval-segmentation-metrics.csv")
+        )
+        save_json_list_to_csv([flow_met], join(folder_results, "eval-flow-metrics.csv"))
 
 
 def train(args, net, textio):

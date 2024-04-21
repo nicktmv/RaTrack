@@ -36,12 +36,15 @@ from csv import DictWriter
 import logging
 
 
-def save_json_list_to_csv(json_list: list[dict], filename: str) -> None:
+def save_json_list_to_csv(
+    json_list: list[dict], filename: str, mode: str = "a"
+) -> None:
     """Save data to a CSV file.
 
     Args:
         json_list (list): List of dictionaries containing data to be saved.
         filename (str): Name of the CSV file to save.
+        mode (str): Mode to open the CSV file. Default is 'a' (append).
     """
     if not json_list:
         logging.warning("No data to save.")
@@ -51,9 +54,13 @@ def save_json_list_to_csv(json_list: list[dict], filename: str) -> None:
 
     fieldnames = set().union(*(json_dict.keys() for json_dict in json_list))
 
-    with open(filename, mode="a", newline="", encoding="utf-8") as file:
+    if not os.path.exists(filename):
+        mode = "w"
+
+    with open(filename, mode=mode, newline="", encoding="utf-8") as file:
         dict_writer = DictWriter(file, fieldnames=fieldnames)
-        dict_writer.writeheader()
+        if mode == "w":
+            dict_writer.writeheader()
         dict_writer.writerows(json_list)
 
 
@@ -86,13 +93,13 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     save_json_list_to_csv(
-        [seg_met], os.path.join(folder_results, "segmentation-metrics.csv")
+        [seg_met], os.path.join(folder_results, "train-segmentation-metrics.csv")
     )
     for key in flow_met.keys():
         flow_met[key] = flow_met[key] / num_examples
     print("scene flow: ", flow_met)
     save_json_list_to_csv(
-        [flow_met], os.path.join(folder_results, "scene-flow-metrics.csv")
+        [flow_met], os.path.join(folder_results, "train-scene-flow-metrics.csv")
     )
 
     return total_loss, loss_items
