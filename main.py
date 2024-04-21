@@ -4,6 +4,8 @@ import argparse
 import os
 import warnings
 import logging
+from datetime import datetime
+
 import torch
 import torch.optim as optim
 import numpy as np
@@ -15,7 +17,13 @@ from torch.utils.data import DataLoader
 
 from dataset_classes.track_vod_3d import TrackingDataVOD
 from models import init_model
-from main_utils import epoch, train_one_epoch, plot_loss_epoch, set_seed
+from main_utils import (
+    epoch,
+    train_one_epoch,
+    plot_loss_epoch,
+    set_seed,
+    save_json_list_to_csv,
+)
 from utils import parse_args_from_yaml
 
 
@@ -56,6 +64,14 @@ def eval_model(args, net, train_loader):
         for key in flow_met.keys():
             flow_met[key] = flow_met[key] / num_examples
         print(flow_met)
+
+        seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        folder_results = os.path.join("checkpoints", args.exp_name, "results")
+        save_json_list_to_csv(
+            [seg_met], os.path.join(folder_results, "segmentation-metrics.csv")
+        )
+        save_json_list_to_csv(folder_results, os.path.join(folder_results, "flow-metrics.csv"))
 
 
 def train(args, net, textio):

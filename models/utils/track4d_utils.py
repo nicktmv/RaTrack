@@ -526,8 +526,14 @@ def load_dets(idx, seq, ds_path):
 
 
 def get_bbx_param(obj_info, transforms, sensor):
+    """Get box in the radar/lidar coordinates
+
+    :param obj_info:
+    :param transforms:
+    :param sensor:
+    :return:
+    """
     
-    ## get box in the radar/lidar coordinates
     if sensor == 'lidar':
         center = (transforms.t_lidar_camera @ np.array([obj_info[3],obj_info[4], obj_info[5], 1]))[:3]
     if sensor == 'radar':

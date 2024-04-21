@@ -1,9 +1,20 @@
 import os
 import random
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 
+import cv2
+import msgpack
+import msgpack_numpy as m
 
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
+import cv2
+from PIL import Image
+from io import BytesIO
+from pathlib import Path
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
@@ -15,7 +26,7 @@ from models.utils.track4d_utils import (
     filter_object_points,
     map_gt_objects,
 )
-
+from PIL import Image
 from losses import *
 from models.track4d import Affinity
 from vod.configuration.file_locations import VodTrackLocations
@@ -67,11 +78,20 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     for key in seg_met.keys():
         seg_met[key] = seg_met[key] / num_examples
     print("segmentation: ", seg_met)
-    save_json_list_to_csv([seg_met], "./artifacts/segmentation_metrics.csv")
+    folder_results = f"./artifacts/metrics/"
+
+    # TODO:NT: add a timestamp key to seg_met and flow_met
+    seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    save_json_list_to_csv(
+        [seg_met], os.path.join(folder_results, "segmentation-metrics.csv")
+    )
     for key in flow_met.keys():
         flow_met[key] = flow_met[key] / num_examples
     print("scene flow: ", flow_met)
-    save_json_list_to_csv([flow_met], "./artifacts/scene_flow_metrics.csv")
+    save_json_list_to_csv(
+        [flow_met], os.path.join(folder_results, "scene-flow-metrics.csv")
+    )
 
     return total_loss, loss_items
 
@@ -102,6 +122,8 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
     flow_met = dict()
 
     pbar = tqdm(enumerate(train_loader), total=len(train_loader))
+    results = {}  # TODO:NT to check
+
     for i, data in pbar:
         if args.model == "track4d_radar":
             (
@@ -334,59 +356,15 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
                     cor = np.asarray(bbox.get_box_points())
                     cors2.append(cor)
                     cor_lbl2.append(obj)
-                # TODO: NT: Make this block of code a function/consider saving cor2 in a binary log
-                fig = plt.figure()
-                ax = fig.add_subplot()
-                ax.scatter(
-                    pc1[:, 0], pc1[:, 1], s=5, c="grey", marker=".", edgecolors="none"
-                )
-                ax.scatter(
-                    pc1_mov[:, 0],
-                    pc1_mov[:, 1],
-                    s=5,
-                    c="black",
-                    marker=".",
-                    edgecolors="none",
-                )
-                cmap = get_cmap(len(objects))
-                for i in range(len(objects)):
-                    key = list(objects.keys())[i]
-                    ax.scatter(
-                        objects[key].detach().cpu().numpy()[:, 0 + 3],
-                        objects[key].detach().cpu().numpy()[:, 1 + 3],
-                        s=5,
-                        color=cmap(i),
-                        marker=".",
-                        edgecolors="none",
-                    )
-                    centre = obj_centre(objects[key][:, :3, :])[0]
-                    ax.text(centre[0], centre[1], str(key), alpha=0.7, size=8)
-                # for i in range(len(cors1)):
-                #     ax.scatter(cors1[i][:, 0], cors1[i][:, 1], s=10, c='black', marker='.', edgecolors='none')
-                for cor in cors2:
-                    cor = cor[[True, True, True, False, False, False, False, True], :]
-                    x_values = [cor[0, 0], cor[1, 0]]
-                    y_values = [cor[0, 1], cor[1, 1]]
-                    plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-                    x_values = [cor[0, 0], cor[2, 0]]
-                    y_values = [cor[0, 1], cor[2, 1]]
-                    plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-                    x_values = [cor[1, 0], cor[3, 0]]
-                    y_values = [cor[1, 1], cor[3, 1]]
-                    plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-                    x_values = [cor[2, 0], cor[3, 0]]
-                    y_values = [cor[2, 1], cor[3, 1]]
-                    plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-                plt.xlim([-10, 50])
-                plt.ylim([30, -30])
-                plt.show()
-                plt.axis("off")
-                Path(folder_results_vis).mkdir(parents=True, exist_ok=True)
-                plt.savefig(
-                    os.path.join(folder_results_vis, f"seq{index}.png"), dpi=200
-                )
-                plt.close()
-                # TODO: NT: (End) Make this block of code a function/consider saving cor2 in a binary log
+                # TODO: NT: consider saving cor2 in a binary log
+
+                save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov)
+
+                # TODO: NT: bool flag to display
+                # display_point_with_image_frame(folder_results_vis, index, frame_data_0)
+
+                result = collect_data(cors2, objects, pc1, pc1_mov)
+                results[index] = result
 
         if mode == "train":
             opt.zero_grad()
@@ -398,7 +376,143 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
 
         for l in loss_items:
             loss_items[l].append(items[l].detach().cpu().numpy())
+
+    # Save the results to msgpack file
+    m.patch()
+    print(len(results))  # TODO: NT: check if results is empty
+    with open(
+        f"./artifacts/{timestamp_folder}/results/msgpack.msgpack", "wb"
+    ) as outfile:
+        outfile.write(msgpack.packb(results))
+    results = {}
+    cv2.destroyAllWindows()
+
     return num_examples, total_loss, loss_items, trk_met, seg_met, flow_met
+
+
+def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    ax.scatter(pc1[:, 0], pc1[:, 1], s=5, c="grey", marker=".", edgecolors="none")
+    ax.scatter(
+        pc1_mov[:, 0],
+        pc1_mov[:, 1],
+        s=5,
+        c="black",
+        marker=".",
+        edgecolors="none",
+    )
+    cmap = get_cmap(len(objects))
+    for i in range(len(objects)):
+        key = list(objects.keys())[i]
+        ax.scatter(
+            objects[key].detach().cpu().numpy()[:, 0 + 3],
+            objects[key].detach().cpu().numpy()[:, 1 + 3],
+            s=5,
+            color=cmap(i),
+            marker=".",
+            edgecolors="none",
+        )
+        centre = obj_centre(objects[key][:, :3, :])[0]
+        ax.text(centre[0], centre[1], str(key), alpha=0.7, size=8)
+    # for i in range(len(cors1)):
+    #     ax.scatter(cors1[i][:, 0], cors1[i][:, 1], s=10, c='black', marker='.', edgecolors='none')
+    for cor in cors2:
+        cor = cor[[True, True, True, False, False, False, False, True], :]
+        x_values = [cor[0, 0], cor[1, 0]]
+        y_values = [cor[0, 1], cor[1, 1]]
+        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
+        x_values = [cor[0, 0], cor[2, 0]]
+        y_values = [cor[0, 1], cor[2, 1]]
+        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
+        x_values = [cor[1, 0], cor[3, 0]]
+        y_values = [cor[1, 1], cor[3, 1]]
+        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
+        x_values = [cor[2, 0], cor[3, 0]]
+        y_values = [cor[2, 1], cor[3, 1]]
+        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
+    plt.xlim([-10, 50])
+    plt.ylim([30, -30])
+    plt.show()
+    plt.axis("off")
+    Path(folder_results_vis).mkdir(parents=True, exist_ok=True)
+    plt.savefig(os.path.join(folder_results_vis, f"seq{index}.png"), dpi=200)
+    plt.close()
+
+
+def display_point_with_image_frame(folder_results_vis, index, frame_data):
+
+    # Get CV image and convert it to RGB (assuming it's loaded in BGR format)
+    cv_image = frame_data.get_image()
+    cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+
+    # Load the point cloud image file
+    pc_image_path = os.path.join(folder_results_vis, f"seq{index}.png")
+    pc_image = Image.open(pc_image_path)  # Open the image file
+    pc_image_array = np.array(pc_image)  # Convert the image to an array
+
+    # Combine and display images
+    combined_image = combine_images(pc_image_array, cv_image)
+    cv2.imshow("Point Cloud and Image", cv2.cvtColor(combined_image, cv2.COLOR_RGB2BGR))
+    cv2.waitKey(1)  # Wait for 1 ms to allow GUI to refresh and handle window events
+
+    if cv2.getWindowProperty("Point Cloud and Image", cv2.WND_PROP_VISIBLE) < 1:
+        cv2.destroyAllWindows()  # Close the window if it has been closed by the user
+
+
+def combine_images(img1, img2, border_color=(255, 255, 255), border_width=10):
+    # Check if images have 4 channels and convert to 3 if necessary
+    if img1.shape[2] == 4:
+        img1 = img1[:, :, :3]
+    if img2.shape[2] == 4:
+        img2 = img2[:, :, :3]
+
+    # Resize images to match in height
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+    if h1 != h2:
+        scale_factor = h1 / h2
+        img2 = cv2.resize(img2, (int(w2 * scale_factor), h1))
+
+    # Create a vertical border with 3 channels
+    border = np.full((h1, border_width, 3), border_color, dtype=np.uint8)
+
+    # Concatenate images with a border in between
+    combined_image = np.hstack((img1, border, img2))
+    return combined_image
+
+
+def collect_data(cors2, objects, pc1, pc1_mov):
+    # Ensure pc1 and pc1_mov are converted to numpy arrays at the beginning
+    data = {
+        "pc1": pc1.detach().cpu().numpy(),  # Detach and convert pc1 to numpy
+        "pc1_mov": pc1_mov.detach()
+        .cpu()
+        .numpy(),  # Detach and convert pc1_mov to numpy
+        "objects": {},
+        "cors2": [],
+    }
+
+    # Collect object data
+    for key, obj in objects.items():
+        obj_data = obj.detach().cpu().numpy()  # Convert object tensor to numpy array
+        center = (
+            obj_centre(obj[:, :3, :])[0].cpu().numpy()
+        )  # Ensure center is also a numpy array
+        data["objects"][key] = {
+            "points": obj_data[:, 3:6],  # Assuming the relevant columns are 3, 4, 5
+            "center": center,
+        }
+
+    # Collect cors2 data
+    # Ensure cors2 items are numpy arrays or compatible formats
+    for cor in cors2:
+        cor_filtered = cor[[True, True, True, False, False, False, False, True], :]
+        data["cors2"].append(
+            cor_filtered
+        )  # Assume cor is already a numpy array or does not require conversion
+
+    return data
 
 
 def plot_loss_epoch(train_items_iter, args, epoch):
@@ -413,7 +527,7 @@ def plot_loss_epoch(train_items_iter, args, epoch):
 
 
 def get_carterian_res(pc, sensor):
-    ## measure resolution for r/theta/phi
+    # measure resolution for r/theta/phi
     if sensor == "radar":  # LRR30
         r_res = 0.2  # m
         theta_res = 1 * np.pi / 180  # radian
@@ -425,17 +539,17 @@ def get_carterian_res(pc, sensor):
         phi_res = 0.08 * np.pi / 180  # radian
 
     res = np.array([r_res, theta_res, phi_res])
-    ## x y z
+    # x y z
     x = pc[:, 0]
     y = pc[:, 1]
     z = pc[:, 2]
 
-    ## from xyz to r/theta/phi (range/elevation/azimuth)
+    # from xyz to r/theta/phi (range/elevation/azimuth)
     r = np.sqrt(x**2 + y**2 + z**2)
     theta = np.arcsin(z / r)
     phi = np.arctan2(y, x)
 
-    ## compute xyz's gradient about r/theta/phi
+    # compute xyz's gradient about r/theta/phi
     grad_x = np.stack(
         (
             np.cos(phi) * np.cos(theta),
@@ -457,7 +571,7 @@ def get_carterian_res(pc, sensor):
         axis=2,
     )
 
-    ## measure resolution for xyz (different positions have different resolution)
+    # measure resolution for xyz (different positions have different resolution)
     x_res = np.sum(abs(grad_x) * res, axis=2)
     y_res = np.sum(abs(grad_y) * res, axis=2)
     z_res = np.sum(abs(grad_z) * res, axis=2)
@@ -472,7 +586,7 @@ def vis_temp(
 ):
     ############################################
     # for debug use
-    if gt_mov_pts != None and i >= 0:
+    if gt_mov_pts and i >= 0:
         mov_pts = pc1.permute(0, 2, 1)[:, :, thres_cls]
         fig = plt.figure()
         ax = fig.add_subplot()
@@ -530,20 +644,20 @@ def eval_scene_flow(pc, pred, labels, mask):
     epe = np.mean(error)
     gtflow_len = np.sqrt(np.sum(labels * labels, 1) + 1e-20)
 
-    ## obtain x y z measure resolution for each point (radar lidar)
+    # obtain x y z measure resolution for each point (radar lidar)
     xyz_res_r = get_carterian_res(pc, "radar")
     res_r = np.sqrt(np.sum(xyz_res_r, 2) + 1e-20)
     xyz_res_l = get_carterian_res(pc, "lidar")
     res_l = np.sqrt(np.sum(xyz_res_l, 2) + 1e-20)
 
-    ## calcualte Resolution-Normalized Error
+    # calcualte Resolution-Normalized Error
     rn_error = error / (res_r / res_l)
     rne = np.mean(rn_error)
     mov_rne = np.sum(rn_error[:, mask == 0]) / (np.sum(mask == 0) + 1e-6)
     stat_rne = np.mean(rn_error[:, mask == 1])
     avg_rne = (mov_rne + stat_rne) / 2
 
-    ## calculate Strict/Relaxed Accuracy Score
+    # calculate Strict/Relaxed Accuracy Score
     sas = np.sum(np.logical_or((rn_error <= 0.10), (rn_error / gtflow_len <= 0.10))) / (
         np.size(pred, 0) * np.size(pred, 2)
     )

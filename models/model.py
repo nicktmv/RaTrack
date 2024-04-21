@@ -20,7 +20,7 @@ def init_model(args):
 
         if args.model == 'track4d' or args.model == 'track4d_radar':
             net = Track4D(args).cuda()
-            if args.continue_model == True:
+            if args.continue_model:
                 net.load_state_dict(torch.load('checkpoints' + '/' + args.exp_name + '/models/model.last.t7'), strict=False)
 
         # net.apply(weights_init)
