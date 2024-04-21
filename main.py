@@ -68,10 +68,8 @@ def eval_model(args, net, train_loader):
         seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         folder_results = os.path.join("checkpoints", args.exp_name, "results")
-        save_json_list_to_csv(
-            [seg_met], os.path.join(folder_results, "segmentation-metrics.csv")
-        )
-        save_json_list_to_csv(folder_results, os.path.join(folder_results, "flow-metrics.csv"))
+        save_json_list_to_csv( [seg_met], os.path.join(folder_results, "segmentation-metrics.csv"))
+        save_json_list_to_csv([flow_met], os.path.join(folder_results, "flow-metrics.csv"))
 
 
 def train(args, net, textio):
