@@ -1,4 +1,8 @@
+import os
 import random
+from datetime import datetime
+from pathlib import Path
+
 
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -17,6 +21,27 @@ from models.track4d import Affinity
 from vod.configuration.file_locations import VodTrackLocations
 from vod.frame.data_loader import FrameDataLoader
 from vod.frame.transformations import FrameTransformMatrix
+from csv import DictWriter
+import logging
+
+
+def save_json_list_to_csv(json_list: list[dict], filename: str) -> None:
+    """Save data to a CSV file.
+
+    Args:
+        json_list (list): List of dictionaries containing data to be saved.
+        filename (str): Name of the CSV file to save.
+    """
+    if not json_list:
+        logging.warning("No data to save.")
+        return
+
+    fieldnames = set().union(*(json_dict.keys() for json_dict in json_list))
+
+    with open(filename, mode="a", newline="", encoding="utf-8") as file:
+        dict_writer = DictWriter(file, fieldnames=fieldnames)
+        dict_writer.writeheader()
+        dict_writer.writerows(json_list)
 
 
 def train_one_epoch(args, net, train_loader, opt, mode, ep):
@@ -42,16 +67,19 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     for key in seg_met.keys():
         seg_met[key] = seg_met[key] / num_examples
     print("segmentation: ", seg_met)
+    save_json_list_to_csv([seg_met], "./artifacts/segmentation_metrics.csv")
     for key in flow_met.keys():
         flow_met[key] = flow_met[key] / num_examples
     print("scene flow: ", flow_met)
+    save_json_list_to_csv([flow_met], "./artifacts/scene_flow_metrics.csv")
 
     return total_loss, loss_items
 
 
 def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
-    folder_results = "./artifacts/results/"
-    folder_results_vis = "./artifacts/results_vis/"
+    timestamp_folder = datetime.now().strftime("%Y-%m-%d--%H-%M")
+    folder_results = f"./artifacts/{timestamp_folder}/results/"
+    folder_results_vis = f"./artifacts/{timestamp_folder}/results_vis/"
     num_examples = 0
     total_loss = 0
 
@@ -248,15 +276,14 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
             for key, obj in objects.items():
                 objects_prev[key] = obj.clone().detach()
             mappings_prev = mappings_curr
-            if h != None:
+            if h is None:
                 h = h.detach()
 
             if mode == "eval":
-                from pathlib import Path
-
                 Path(folder_results + seq[0]).mkdir(parents=True, exist_ok=True)
+
                 file = open(
-                    folder_results + seq[0] + "/" + str(index).zfill(5) + ".txt", "w+"
+                    os.path.join(folder_results, seq[0], f"{index:05}.txt"), "w+"
                 )
                 idx = -1
                 for obj_id, obj in objects.items():
@@ -355,7 +382,9 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
                 plt.show()
                 plt.axis("off")
                 Path(folder_results_vis).mkdir(parents=True, exist_ok=True)
-                plt.savefig(f"{folder_results_vis}seq{index}.png", dpi=200)
+                plt.savefig(
+                    os.path.join(folder_results_vis, f"seq{index}.png"), dpi=200
+                )
                 plt.close()
                 # TODO: NT: (End) Make this block of code a function/consider saving cor2 in a binary log
 
