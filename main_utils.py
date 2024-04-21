@@ -47,6 +47,8 @@ def save_json_list_to_csv(json_list: list[dict], filename: str) -> None:
         logging.warning("No data to save.")
         return
 
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+
     fieldnames = set().union(*(json_dict.keys() for json_dict in json_list))
 
     with open(filename, mode="a", newline="", encoding="utf-8") as file:
@@ -96,7 +98,9 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     return total_loss, loss_items
 
 
-def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
+def epoch(
+    args, net, train_loader, ep_num=None, opt=None, mode="train", display_images=True
+):
     timestamp_folder = datetime.now().strftime("%Y-%m-%d--%H-%M")
     folder_results = f"./artifacts/{timestamp_folder}/results/"
     folder_results_vis = f"./artifacts/{timestamp_folder}/results_vis/"
@@ -122,7 +126,7 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
     flow_met = dict()
 
     pbar = tqdm(enumerate(train_loader), total=len(train_loader))
-    results = {}  # TODO:NT to check
+    results = {}
 
     for i, data in pbar:
         if args.model == "track4d_radar":
@@ -360,8 +364,11 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
 
                 save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov)
 
-                # TODO: NT: bool flag to display
-                # display_point_with_image_frame(folder_results_vis, index, frame_data_0)
+                """If display_images is True, display the point cloud and image frame side by side."""
+                if display_images:
+                    display_point_with_image_frame(
+                        folder_results_vis, index, frame_data_0
+                    )
 
                 result = collect_data(cors2, objects, pc1, pc1_mov)
                 results[index] = result
@@ -390,13 +397,19 @@ def epoch(args, net, train_loader, ep_num=None, opt=None, mode="train"):
     return num_examples, total_loss, loss_items, trk_met, seg_met, flow_met
 
 
+import os
+from pathlib import Path
+import matplotlib.pyplot as plt
+
+
 def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
     fig = plt.figure()
     ax = fig.add_subplot()
-    ax.scatter(pc1[:, 0], pc1[:, 1], s=5, c="grey", marker=".", edgecolors="none")
+    # Swapping the axes for the scatter plots
+    ax.scatter(pc1[:, 1], pc1[:, 0], s=5, c="grey", marker=".", edgecolors="none")
     ax.scatter(
-        pc1_mov[:, 0],
         pc1_mov[:, 1],
+        pc1_mov[:, 0],
         s=5,
         c="black",
         marker=".",
@@ -405,34 +418,54 @@ def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
     cmap = get_cmap(len(objects))
     for i in range(len(objects)):
         key = list(objects.keys())[i]
+        # Swapping the axes for object scatter plots
         ax.scatter(
-            objects[key].detach().cpu().numpy()[:, 0 + 3],
             objects[key].detach().cpu().numpy()[:, 1 + 3],
+            objects[key].detach().cpu().numpy()[:, 0 + 3],
             s=5,
             color=cmap(i),
             marker=".",
             edgecolors="none",
         )
+        # Calculating the new centre after swapping axes
         centre = obj_centre(objects[key][:, :3, :])[0]
-        ax.text(centre[0], centre[1], str(key), alpha=0.7, size=8)
-    # for i in range(len(cors1)):
-    #     ax.scatter(cors1[i][:, 0], cors1[i][:, 1], s=10, c='black', marker='.', edgecolors='none')
+        ax.text(centre[1], centre[0], str(key), alpha=0.7, size=8)
+
     for cor in cors2:
         cor = cor[[True, True, True, False, False, False, False, True], :]
-        x_values = [cor[0, 0], cor[1, 0]]
-        y_values = [cor[0, 1], cor[1, 1]]
-        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-        x_values = [cor[0, 0], cor[2, 0]]
-        y_values = [cor[0, 1], cor[2, 1]]
-        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-        x_values = [cor[1, 0], cor[3, 0]]
-        y_values = [cor[1, 1], cor[3, 1]]
-        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-        x_values = [cor[2, 0], cor[3, 0]]
-        y_values = [cor[2, 1], cor[3, 1]]
-        plt.plot(x_values, y_values, "bo-", linewidth=0.3, markersize=0)
-    plt.xlim([-10, 50])
-    plt.ylim([30, -30])
+        # Swapping the axes for line plots
+        ax.plot(
+            [cor[0, 1], cor[1, 1]],
+            [cor[0, 0], cor[1, 0]],
+            "bo-",
+            linewidth=0.3,
+            markersize=0,
+        )
+        ax.plot(
+            [cor[0, 1], cor[2, 1]],
+            [cor[0, 0], cor[2, 0]],
+            "bo-",
+            linewidth=0.3,
+            markersize=0,
+        )
+        ax.plot(
+            [cor[1, 1], cor[3, 1]],
+            [cor[1, 0], cor[3, 0]],
+            "bo-",
+            linewidth=0.3,
+            markersize=0,
+        )
+        ax.plot(
+            [cor[2, 1], cor[3, 1]],
+            [cor[2, 0], cor[3, 0]],
+            "bo-",
+            linewidth=0.3,
+            markersize=0,
+        )
+
+    # Updating the axis limits after swapping
+    plt.xlim([30, -30])
+    plt.ylim([-10, 50])
     plt.show()
     plt.axis("off")
     Path(folder_results_vis).mkdir(parents=True, exist_ok=True)
@@ -440,16 +473,27 @@ def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
     plt.close()
 
 
+def get_cmap(n, name="hsv"):
+    """Return a colormap with n different colors."""
+    return plt.cm.get_cmap(name, n)
+
+
+def obj_centre(obj):
+    """Dummy function to calculate the center of the object."""
+    return obj.mean(dim=1)
+
+
 def display_point_with_image_frame(folder_results_vis, index, frame_data):
 
-    # Get CV image and convert it to RGB (assuming it's loaded in BGR format)
     cv_image = frame_data.get_image()
-    cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
 
     # Load the point cloud image file
     pc_image_path = os.path.join(folder_results_vis, f"seq{index}.png")
     pc_image = Image.open(pc_image_path)  # Open the image file
     pc_image_array = np.array(pc_image)  # Convert the image to an array
+
+    # Flip the point cloud image left to right
+    # pc_image_array = np.fliplr(pc_image_array)
 
     # Combine and display images
     combined_image = combine_images(pc_image_array, cv_image)
@@ -460,22 +504,60 @@ def display_point_with_image_frame(folder_results_vis, index, frame_data):
         cv2.destroyAllWindows()  # Close the window if it has been closed by the user
 
 
-def combine_images(img1, img2, border_color=(255, 255, 255), border_width=10):
+"""
+This function combines two images side by side with a border in between.
+The images are resized to match in height and adjusted in width to not exceed a maximum width.
+The images are expected to be in the form of numpy arrays with shape (height, width, channels).
+The border color, border width, and maximum width can be customized.
+
+Args:
+    img1 (np.ndarray): First image as a numpy array.
+    img2 (np.ndarray): Second image as a numpy array.
+    border_color (tuple): RGB color of the border. Default is white.
+    border_width (int): Width of the border in pixels. Default is 10.
+    max_width (int): Maximum width of the combined image. Default is 1920.
+    
+Returns:
+    np.ndarray: Combined image as a numpy array.
+"""
+
+
+def combine_images(
+    img1, img2, border_color=(255, 255, 255), border_width=10, max_width=1920
+):
     # Check if images have 4 channels and convert to 3 if necessary
     if img1.shape[2] == 4:
         img1 = img1[:, :, :3]
     if img2.shape[2] == 4:
         img2 = img2[:, :, :3]
 
-    # Resize images to match in height
+    # Resize images to match in height and adjust width to not exceed max_width
     h1, w1 = img1.shape[:2]
     h2, w2 = img2.shape[:2]
-    if h1 != h2:
-        scale_factor = h1 / h2
-        img2 = cv2.resize(img2, (int(w2 * scale_factor), h1))
+
+    # Calculate scale to fit both images and border within max_width
+    scale_factor = min((max_width - border_width) / (w1 + w2), 1)
+
+    # Resize both images with the same scale factor to maintain aspect ratio
+    img1 = cv2.resize(img1, (int(w1 * scale_factor), int(h1 * scale_factor)))
+    img2 = cv2.resize(img2, (int(w2 * scale_factor), int(h2 * scale_factor)))
+
+    # Adjust height of the images to match by adding a black border to the smaller image
+    if img1.shape[0] > img2.shape[0]:
+        delta_h = img1.shape[0] - img2.shape[0]
+        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
+        img2 = cv2.copyMakeBorder(
+            img2, top, bottom, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0]
+        )
+    elif img2.shape[0] > img1.shape[0]:
+        delta_h = img2.shape[0] - img1.shape[0]
+        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
+        img1 = cv2.copyMakeBorder(
+            img1, top, bottom, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0]
+        )
 
     # Create a vertical border with 3 channels
-    border = np.full((h1, border_width, 3), border_color, dtype=np.uint8)
+    border = np.full((img1.shape[0], border_width, 3), border_color, dtype=np.uint8)
 
     # Concatenate images with a border in between
     combined_image = np.hstack((img1, border, img2))
