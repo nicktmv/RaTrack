@@ -65,13 +65,37 @@ def eval_model(args, net, train_loader):
             flow_met[key] = flow_met[key] / num_examples
         print(flow_met)
 
-        seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
+        # Ensure timestamp is added last
+        seg_met["timestamp"] = timestamp
+        flow_met["timestamp"] = timestamp
+
+        # Define the order of columns explicitly for segmentation metrics
+        seg_fieldnames = ['acc', 'miou', 'sen', 'timestamp']
+
+        # Define the order of columns explicitly for flow metrics
+        flow_fieldnames = ['rne', '50-50 rne', 'mov_rne', 'stat_rne', 'sas', 'ras', 'epe', 'timestamp']
+
+        # Save results to CSV
         folder_results = "./artifacts/eval/"
+
+        # Check if the directory exists, if not, create it
+        os.makedirs(folder_results, exist_ok=True)
+
+        # Save the segmentation metrics with the explicit fieldnames
         save_json_list_to_csv(
-            [seg_met], join(folder_results, "eval-segmentation-metrics.csv")
+            [seg_met],
+            join(folder_results, "eval-segmentation-metrics.csv"),
+            fieldnames=seg_fieldnames
         )
-        save_json_list_to_csv([flow_met], join(folder_results, "eval-flow-metrics.csv"))
+
+        # Save the flow metrics with the explicit fieldnames
+        save_json_list_to_csv(
+            [flow_met],
+            join(folder_results, "eval-flow-metrics.csv"),
+            fieldnames=flow_fieldnames
+        )
 
 
 def train(args, net, textio):

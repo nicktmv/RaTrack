@@ -37,7 +37,7 @@ import logging
 
 
 def save_json_list_to_csv(
-    json_list: list[dict], filename: str, mode: str = "a"
+    json_list: list[dict], filename: str, mode: str = "a", fieldnames: list = None
 ) -> None:
     """Save data to a CSV file.
 
@@ -45,6 +45,7 @@ def save_json_list_to_csv(
         json_list (list): List of dictionaries containing data to be saved.
         filename (str): Name of the CSV file to save.
         mode (str): Mode to open the CSV file. Default is 'a' (append).
+        fieldnames (list): Explicit list of field names for the CSV file.
     """
     if not json_list:
         logging.warning("No data to save.")
@@ -52,7 +53,9 @@ def save_json_list_to_csv(
 
     os.makedirs(os.path.dirname(filename), exist_ok=True)
 
-    fieldnames = set().union(*(json_dict.keys() for json_dict in json_list))
+    # Use the provided fieldnames or deduce them from the JSON list.
+    if fieldnames is None:
+        fieldnames = list(set().union(*(json_dict.keys() for json_dict in json_list)))
 
     if not os.path.exists(filename):
         mode = "w"
@@ -106,7 +109,7 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
 
 
 def epoch(
-    args, net, train_loader, ep_num=None, opt=None, mode="train", display_images=True
+    args, net, train_loader, ep_num=None, opt=None, mode="train", display_images=False
 ):
     timestamp_folder = datetime.now().strftime("%Y-%m-%d--%H-%M")
     folder_results = f"./artifacts/{timestamp_folder}/results/"
