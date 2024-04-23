@@ -34,6 +34,6 @@ min_obj_points: 2
 
 
 ## checkpoint
-load_checkpoint: True
+load_checkpoint: False
 model_path: 'checkpoints/track4d_radar/models/model.best.t7'
 continue_model: False
