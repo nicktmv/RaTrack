@@ -94,16 +94,20 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
 
     # TODO:NT: add a timestamp key to seg_met and flow_met
     seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     save_json_list_to_csv(
         [seg_met], os.path.join(folder_results, "train-segmentation-metrics.csv")
     )
+
     for key in flow_met.keys():
         flow_met[key] = flow_met[key] / num_examples
     print("scene flow: ", flow_met)
+
+    flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     save_json_list_to_csv(
         [flow_met], os.path.join(folder_results, "train-scene-flow-metrics.csv")
     )
+    # consider deletelit with key flow_met["timestamp"]
+
 
     return total_loss, loss_items
 
@@ -312,7 +316,7 @@ def epoch(
             for key, obj in objects.items():
                 objects_prev[key] = obj.clone().detach()
             mappings_prev = mappings_curr
-            if h is None:
+            if h is not None:
                 h = h.detach()
 
             if mode == "eval":
@@ -395,13 +399,11 @@ def epoch(
             loss_items[l].append(items[l].detach().cpu().numpy())
 
     # Save the results to msgpack file
-    m.patch()
-    print(len(results))  # TODO: NT: check if results is empty
-    with open(
-        f"./artifacts/{timestamp_folder}/results/msgpack.msgpack", "wb"
-    ) as outfile:
-        outfile.write(msgpack.packb(results))
-    results = {}
+    # m.patch()
+    # with open(
+    #     f"./artifacts/{timestamp_folder}/results/msgpack.msgpack", "wb"
+    # ) as outfile:
+    #     outfile.write(msgpack.packb(results))
     cv2.destroyAllWindows()
 
     return num_examples, total_loss, loss_items, trk_met, seg_met, flow_met
