@@ -92,7 +92,6 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     print("segmentation: ", seg_met)
     folder_results = f"./artifacts/train/"
 
-    # TODO:NT: add a timestamp key to seg_met and flow_met
     seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     save_json_list_to_csv(
         [seg_met], os.path.join(folder_results, "train-segmentation-metrics.csv")
@@ -106,7 +105,7 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     save_json_list_to_csv(
         [flow_met], os.path.join(folder_results, "train-scene-flow-metrics.csv")
     )
-    # consider deletelit with key flow_met["timestamp"]
+
 
     return total_loss, loss_items
 
