@@ -9,7 +9,7 @@ epochs: 1
 lr: 0.001
 decay_epochs: 1
 decay_rate: 0.97
-pretrain_epochs: 1
+pretrain_epochs: 0
 
 ## device
 cuda_device: '0'
@@ -34,6 +34,6 @@ min_obj_points: 2
 
 
 ## checkpoint
-load_checkpoint: True
+load_checkpoint: False
 model_path: 'checkpoint/track4d_radar/models/model.last.t7'
 continue_model: False

@@ -90,7 +90,7 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     for key in seg_met.keys():
         seg_met[key] = seg_met[key] / num_examples
     print("segmentation: ", seg_met)
-    folder_results = f"./artifacts/metrics/"
+    folder_results = f"./artifacts/train/"
 
     # TODO:NT: add a timestamp key to seg_met and flow_met
     seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -107,7 +107,6 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
         [flow_met], os.path.join(folder_results, "train-scene-flow-metrics.csv")
     )
     # consider deletelit with key flow_met["timestamp"]
-
 
     return total_loss, loss_items
 
@@ -744,7 +743,7 @@ def eval_scene_flow(pc, pred, labels, mask):
     xyz_res_l = get_carterian_res(pc, "lidar")
     res_l = np.sqrt(np.sum(xyz_res_l, 2) + 1e-20)
 
-    # calcualte Resolution-Normalized Error
+    # calculate Resolution-Normalized Error
     rn_error = error / (res_r / res_l)
     rne = np.mean(rn_error)
     mov_rne = np.sum(rn_error[:, mask == 0]) / (np.sum(mask == 0) + 1e-6)
