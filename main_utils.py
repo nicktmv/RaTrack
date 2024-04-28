@@ -88,12 +88,15 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     # Ensure timestamp is added last
     seg_met["timestamp"] = timestamp
     flow_met["timestamp"] = timestamp
+    seg_met["epoch"] = ep
+    flow_met["epoch"] = ep
 
     # Define the order of columns explicitly for segmentation metrics
-    seg_fieldnames = ["acc", "miou", "sen", "timestamp", "sw-version"]
+    seg_fieldnames = ["epoch", "acc", "miou", "sen", "timestamp", "sw-version"]
     
     # Define the order of columns explicitly for flow metrics
     flow_fieldnames = [
+        "epoch",
         "rne",
         "50-50 rne",
         "mov_rne",
