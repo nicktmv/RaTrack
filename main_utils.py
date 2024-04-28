@@ -22,6 +22,7 @@ from vod.frame.data_loader import FrameDataLoader
 from vod.frame.transformations import FrameTransformMatrix
 from csv import DictWriter
 import logging
+from version import __version__
 
 
 def save_json_list_to_csv(
@@ -83,13 +84,18 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
         flow_met[key] = flow_met[key] / num_examples
     print("scene flow: ", flow_met)
 
-    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    
-    # Ensure timestamp is added last
-    seg_met["timestamp"] = timestamp
-    flow_met["timestamp"] = timestamp
+    # Setting Epoch Number
     seg_met["epoch"] = ep
     flow_met["epoch"] = ep
+
+    # Setting Timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    seg_met["timestamp"] = timestamp
+    flow_met["timestamp"] = timestamp
+
+    # Setting Software Version
+    seg_met["sw-version"] = __version__
+    flow_met["sw-version"] = __version__
 
     # Define the order of columns explicitly for segmentation metrics
     seg_fieldnames = ["epoch", "acc", "miou", "sen", "timestamp", "sw-version"]
