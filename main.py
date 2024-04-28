@@ -25,6 +25,7 @@ from main_utils import (
     save_json_list_to_csv,
 )
 from utils import parse_args_from_yaml
+from version import __version__
 
 
 class IOStream:
@@ -71,8 +72,11 @@ def eval_model(args, net, train_loader):
         seg_met["timestamp"] = timestamp
         flow_met["timestamp"] = timestamp
 
+        seg_met["sw-version"] = __version__
+        flow_met["sw-version"] = __version__
+
         # Define the order of columns explicitly for segmentation metrics
-        seg_fieldnames = ["acc", "miou", "sen", "timestamp"]
+        seg_fieldnames = ["acc", "miou", "sen", "timestamp", "sw-version"]
 
         # Define the order of columns explicitly for flow metrics
         flow_fieldnames = [
@@ -84,6 +88,7 @@ def eval_model(args, net, train_loader):
             "ras",
             "epe",
             "timestamp",
+            "sw-version",
         ]
 
         # Save results to CSV

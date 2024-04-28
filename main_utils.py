@@ -1,21 +1,9 @@
-import os
 import random
 from datetime import datetime
-from io import BytesIO
-from pathlib import Path
-
-import cv2
-import msgpack
-import msgpack_numpy as m
-
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 import cv2
-from PIL import Image
-from io import BytesIO
-from pathlib import Path
-from matplotlib import pyplot as plt
+from os.path import join
+import torch
 from tqdm import tqdm
 
 from models.utils.track4d_utils import (
@@ -77,7 +65,7 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
         aff_net = Affinity().cuda()
         aff_net.eval()
 
-    num_examples, total_loss, loss_items, trk_met, seg_met, flow_met = epoch(
+    num_examples, total_loss, loss_items, _, seg_met, flow_met = epoch(
         args, net, train_loader, opt=opt, mode=mode, ep_num=ep
     )
 
@@ -90,22 +78,52 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     for key in seg_met.keys():
         seg_met[key] = seg_met[key] / num_examples
     print("segmentation: ", seg_met)
-    folder_results = f"./artifacts/train/"
-
-    seg_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    save_json_list_to_csv(
-        [seg_met], os.path.join(folder_results, "train-segmentation-metrics.csv")
-    )
 
     for key in flow_met.keys():
         flow_met[key] = flow_met[key] / num_examples
     print("scene flow: ", flow_met)
 
-    flow_met["timestamp"] = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    save_json_list_to_csv(
-        [flow_met], os.path.join(folder_results, "train-scene-flow-metrics.csv")
-    )
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    
+    # Ensure timestamp is added last
+    seg_met["timestamp"] = timestamp
+    flow_met["timestamp"] = timestamp
 
+    # Define the order of columns explicitly for segmentation metrics
+    seg_fieldnames = ["acc", "miou", "sen", "timestamp", "sw-version"]
+    
+    # Define the order of columns explicitly for flow metrics
+    flow_fieldnames = [
+        "rne",
+        "50-50 rne",
+        "mov_rne",
+        "stat_rne",
+        "sas",
+        "ras",
+        "epe",
+        "timestamp",
+        "sw-version",
+    ]
+    
+    # Save results to CSV
+    folder_results = "./artifacts/train/"
+    
+    # Check if the directory exists, if not, create it
+    os.makedirs(folder_results, exist_ok=True)
+    
+    # Save the segmentation metrics with the explicit fieldnames
+    save_json_list_to_csv(
+        [seg_met],
+        join(folder_results, "train-segmentation-metrics.csv"),
+        fieldnames=seg_fieldnames,
+    )
+    
+    # Save the flow metrics with the explicit fieldnames
+    save_json_list_to_csv(
+        [flow_met],
+        join(folder_results, "train-scene-flow-metrics.csv"),
+        fieldnames=flow_fieldnames,
+    )
 
     return total_loss, loss_items
 
