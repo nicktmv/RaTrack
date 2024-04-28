@@ -2,10 +2,10 @@ import random
 from datetime import datetime
 import numpy as np
 import cv2
-from os.path import join
 import torch
 from tqdm import tqdm
 
+from mine import save_epoch_training_results, display_point_with_image_frame, my_obj_centre, get_cmap
 from models.utils.track4d_utils import (
     filter_moving_boxes_det,
     get_bbx_param,
@@ -14,46 +14,14 @@ from models.utils.track4d_utils import (
     filter_object_points,
     map_gt_objects,
 )
-from PIL import Image
 from losses import *
 from models.track4d import Affinity
 from vod.configuration.file_locations import VodTrackLocations
 from vod.frame.data_loader import FrameDataLoader
 from vod.frame.transformations import FrameTransformMatrix
-from csv import DictWriter
-import logging
-from version import __version__
-
-
-def save_json_list_to_csv(
-    json_list: list[dict], filename: str, mode: str = "a", fieldnames: list = None
-) -> None:
-    """Save data to a CSV file.
-
-    Args:
-        json_list (list): List of dictionaries containing data to be saved.
-        filename (str): Name of the CSV file to save.
-        mode (str): Mode to open the CSV file. Default is 'a' (append).
-        fieldnames (list): Explicit list of field names for the CSV file.
-    """
-    if not json_list:
-        logging.warning("No data to save.")
-        return
-
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-
-    # Use the provided fieldnames or deduce them from the JSON list.
-    if fieldnames is None:
-        fieldnames = list(set().union(*(json_dict.keys() for json_dict in json_list)))
-
-    if not os.path.exists(filename):
-        mode = "w"
-
-    with open(filename, mode=mode, newline="", encoding="utf-8") as file:
-        dict_writer = DictWriter(file, fieldnames=fieldnames)
-        if mode == "w":
-            dict_writer.writeheader()
-        dict_writer.writerows(json_list)
+import os
+from pathlib import Path
+import matplotlib.pyplot as plt
 
 
 def train_one_epoch(args, net, train_loader, opt, mode, ep):
@@ -79,60 +47,11 @@ def train_one_epoch(args, net, train_loader, opt, mode, ep):
     for key in seg_met.keys():
         seg_met[key] = seg_met[key] / num_examples
     print("segmentation: ", seg_met)
-
     for key in flow_met.keys():
         flow_met[key] = flow_met[key] / num_examples
     print("scene flow: ", flow_met)
 
-    # Setting Epoch Number
-    seg_met["epoch"] = ep
-    flow_met["epoch"] = ep
-
-    # Setting Timestamp
-    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    seg_met["timestamp"] = timestamp
-    flow_met["timestamp"] = timestamp
-
-    # Setting Software Version
-    seg_met["sw-version"] = __version__
-    flow_met["sw-version"] = __version__
-
-    # Define the order of columns explicitly for segmentation metrics
-    seg_fieldnames = ["epoch", "acc", "miou", "sen", "timestamp", "sw-version"]
-    
-    # Define the order of columns explicitly for flow metrics
-    flow_fieldnames = [
-        "epoch",
-        "rne",
-        "50-50 rne",
-        "mov_rne",
-        "stat_rne",
-        "sas",
-        "ras",
-        "epe",
-        "timestamp",
-        "sw-version",
-    ]
-    
-    # Save results to CSV
-    folder_results = "./artifacts/train/"
-    
-    # Check if the directory exists, if not, create it
-    os.makedirs(folder_results, exist_ok=True)
-    
-    # Save the segmentation metrics with the explicit fieldnames
-    save_json_list_to_csv(
-        [seg_met],
-        join(folder_results, "train-segmentation-metrics.csv"),
-        fieldnames=seg_fieldnames,
-    )
-    
-    # Save the flow metrics with the explicit fieldnames
-    save_json_list_to_csv(
-        [flow_met],
-        join(folder_results, "train-scene-flow-metrics.csv"),
-        fieldnames=flow_fieldnames,
-    )
+    save_epoch_training_results(ep, seg_met, flow_met)
 
     return total_loss, loss_items
 
@@ -165,7 +84,6 @@ def epoch(
     flow_met = dict()
 
     pbar = tqdm(enumerate(train_loader), total=len(train_loader))
-    results = {}
 
     for i, data in pbar:
         if args.model == "track4d_radar":
@@ -409,9 +327,6 @@ def epoch(
                         folder_results_vis, index, frame_data_0
                     )
 
-                result = collect_data(cors2, objects, pc1, pc1_mov)
-                results[index] = result
-
         if mode == "train":
             opt.zero_grad()
             loss.backward()
@@ -423,20 +338,9 @@ def epoch(
         for l in loss_items:
             loss_items[l].append(items[l].detach().cpu().numpy())
 
-    # Save the results to msgpack file
-    # m.patch()
-    # with open(
-    #     f"./artifacts/{timestamp_folder}/results/msgpack.msgpack", "wb"
-    # ) as outfile:
-    #     outfile.write(msgpack.packb(results))
     cv2.destroyAllWindows()
 
     return num_examples, total_loss, loss_items, trk_met, seg_met, flow_met
-
-
-import os
-from pathlib import Path
-import matplotlib.pyplot as plt
 
 
 def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
@@ -465,7 +369,7 @@ def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
             edgecolors="none",
         )
         # Calculating the new centre after swapping axes
-        centre = obj_centre(objects[key][:, :3, :])[0]
+        centre = my_obj_centre(objects[key][:, :3, :])[0]
         ax.text(centre[1], centre[0], str(key), alpha=0.7, size=8)
 
     for cor in cors2:
@@ -508,130 +412,6 @@ def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
     Path(folder_results_vis).mkdir(parents=True, exist_ok=True)
     plt.savefig(os.path.join(folder_results_vis, f"seq{index}.png"), dpi=200)
     plt.close()
-
-
-def get_cmap(n, name="hsv"):
-    """Return a colormap with n different colors."""
-    return plt.cm.get_cmap(name, n)
-
-
-def obj_centre(obj):
-    """Dummy function to calculate the center of the object."""
-    return obj.mean(dim=1)
-
-
-def display_point_with_image_frame(folder_results_vis, index, frame_data):
-
-    cv_image = frame_data.get_image()
-
-    # Load the point cloud image file
-    pc_image_path = os.path.join(folder_results_vis, f"seq{index}.png")
-    pc_image = Image.open(pc_image_path)  # Open the image file
-    pc_image_array = np.array(pc_image)  # Convert the image to an array
-
-    # Flip the point cloud image left to right
-    # pc_image_array = np.fliplr(pc_image_array)
-
-    # Combine and display images
-    combined_image = combine_images(pc_image_array, cv_image)
-    cv2.imshow("Point Cloud and Image", cv2.cvtColor(combined_image, cv2.COLOR_RGB2BGR))
-    cv2.waitKey(1)  # Wait for 1 ms to allow GUI to refresh and handle window events
-
-    if cv2.getWindowProperty("Point Cloud and Image", cv2.WND_PROP_VISIBLE) < 1:
-        cv2.destroyAllWindows()  # Close the window if it has been closed by the user
-
-
-"""
-This function combines two images side by side with a border in between.
-The images are resized to match in height and adjusted in width to not exceed a maximum width.
-The images are expected to be in the form of numpy arrays with shape (height, width, channels).
-The border color, border width, and maximum width can be customized.
-
-Args:
-    img1 (np.ndarray): First image as a numpy array.
-    img2 (np.ndarray): Second image as a numpy array.
-    border_color (tuple): RGB color of the border. Default is white.
-    border_width (int): Width of the border in pixels. Default is 10.
-    max_width (int): Maximum width of the combined image. Default is 1920.
-    
-Returns:
-    np.ndarray: Combined image as a numpy array.
-"""
-
-
-def combine_images(
-    img1, img2, border_color=(255, 255, 255), border_width=10, max_width=1920
-):
-    # Check if images have 4 channels and convert to 3 if necessary
-    if img1.shape[2] == 4:
-        img1 = img1[:, :, :3]
-    if img2.shape[2] == 4:
-        img2 = img2[:, :, :3]
-
-    # Resize images to match in height and adjust width to not exceed max_width
-    h1, w1 = img1.shape[:2]
-    h2, w2 = img2.shape[:2]
-
-    # Calculate scale to fit both images and border within max_width
-    scale_factor = min((max_width - border_width) / (w1 + w2), 1)
-
-    # Resize both images with the same scale factor to maintain aspect ratio
-    img1 = cv2.resize(img1, (int(w1 * scale_factor), int(h1 * scale_factor)))
-    img2 = cv2.resize(img2, (int(w2 * scale_factor), int(h2 * scale_factor)))
-
-    # Adjust height of the images to match by adding a black border to the smaller image
-    if img1.shape[0] > img2.shape[0]:
-        delta_h = img1.shape[0] - img2.shape[0]
-        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
-        img2 = cv2.copyMakeBorder(
-            img2, top, bottom, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0]
-        )
-    elif img2.shape[0] > img1.shape[0]:
-        delta_h = img2.shape[0] - img1.shape[0]
-        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
-        img1 = cv2.copyMakeBorder(
-            img1, top, bottom, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0]
-        )
-
-    # Create a vertical border with 3 channels
-    border = np.full((img1.shape[0], border_width, 3), border_color, dtype=np.uint8)
-
-    # Concatenate images with a border in between
-    combined_image = np.hstack((img1, border, img2))
-    return combined_image
-
-
-def collect_data(cors2, objects, pc1, pc1_mov):
-    # Ensure pc1 and pc1_mov are converted to numpy arrays at the beginning
-    data = {
-        "pc1": pc1.detach().cpu().numpy(),  # Detach and convert pc1 to numpy
-        "pc1_mov": pc1_mov.detach()
-        .cpu()
-        .numpy(),  # Detach and convert pc1_mov to numpy
-        "objects": {},
-        "cors2": [],
-    }
-
-    # Collect object data
-    for key, obj in objects.items():
-        obj_data = obj.detach().cpu().numpy()  # Convert object tensor to numpy array
-        center = (
-            obj_centre(obj[:, :3, :])[0].cpu().numpy()
-        )  # Ensure center is also a numpy array
-        data["objects"][key] = {
-            "points": obj_data[:, 3:6],  # Assuming the relevant columns are 3, 4, 5
-            "center": center,
-        }
-
-    # Collect cors2 data
-    # Ensure cors2 items are numpy arrays or compatible formats
-    for cor in cors2:
-        cor_filtered = cor[[True, True, True, False, False, False, False, True], :]
-        data["cors2"].append(
-            cor_filtered
-        )  # Assume cor is already a numpy array or does not require conversion
-
-    return data
 
 
 def plot_loss_epoch(train_items_iter, args, epoch):
@@ -705,7 +485,7 @@ def vis_temp(
 ):
     ############################################
     # for debug use
-    if gt_mov_pts and i >= 0:
+    if gt_mov_pts != None and i >= 0:
         mov_pts = pc1.permute(0, 2, 1)[:, :, thres_cls]
         fig = plt.figure()
         ax = fig.add_subplot()
@@ -810,12 +590,6 @@ def eval_motion_seg(pre, gt):
     seg_metric = {"acc": acc, "miou": miou, "sen": sen}
 
     return seg_metric
-
-
-def get_cmap(n, name="hsv"):
-    """Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
-    RGB color; the keyword argument name must be a standard mpl colormap name."""
-    return plt.cm.get_cmap(name, n)
 
 
 def set_seed(seed=0):

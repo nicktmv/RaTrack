@@ -16,16 +16,10 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 
 from dataset_classes.track_vod_3d import TrackingDataVOD
+from mine import save_eval_results
 from models import init_model
-from main_utils import (
-    epoch,
-    train_one_epoch,
-    plot_loss_epoch,
-    set_seed,
-    save_json_list_to_csv,
-)
+from main_utils import epoch, train_one_epoch, plot_loss_epoch, set_seed
 from utils import parse_args_from_yaml
-from version import __version__
 
 
 class IOStream:
@@ -66,50 +60,7 @@ def eval_model(args, net, train_loader):
             flow_met[key] = flow_met[key] / num_examples
         print(flow_met)
 
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-
-        # Ensure timestamp is added last
-        seg_met["timestamp"] = timestamp
-        flow_met["timestamp"] = timestamp
-
-        seg_met["sw-version"] = __version__
-        flow_met["sw-version"] = __version__
-
-        # Define the order of columns explicitly for segmentation metrics
-        seg_fieldnames = ["acc", "miou", "sen", "timestamp", "sw-version"]
-
-        # Define the order of columns explicitly for flow metrics
-        flow_fieldnames = [
-            "rne",
-            "50-50 rne",
-            "mov_rne",
-            "stat_rne",
-            "sas",
-            "ras",
-            "epe",
-            "timestamp",
-            "sw-version",
-        ]
-
-        # Save results to CSV
-        folder_results = "./artifacts/eval/"
-
-        # Check if the directory exists, if not, create it
-        os.makedirs(folder_results, exist_ok=True)
-
-        # Save the segmentation metrics with the explicit fieldnames
-        save_json_list_to_csv(
-            [seg_met],
-            join(folder_results, "eval-segmentation-metrics.csv"),
-            fieldnames=seg_fieldnames,
-        )
-
-        # Save the flow metrics with the explicit fieldnames
-        save_json_list_to_csv(
-            [flow_met],
-            join(folder_results, "eval-scene-flow-metrics.csv"),
-            fieldnames=flow_fieldnames,
-        )
+        save_eval_results(seg_met, flow_met)
 
 
 def train(args, net, textio):
@@ -256,7 +207,7 @@ def main(config_path: str):
 
 
 def my_main(cwd: str = ""):
-    """_summary_"""
+    """Main function to run the training process."""
     logger = logging.getLogger("numba")
     logger.setLevel(logging.CRITICAL)
 
