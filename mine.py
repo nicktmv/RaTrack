@@ -7,7 +7,6 @@ from PIL import Image
 
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
 
 from version import __version__
 
@@ -152,12 +151,6 @@ def save_json_list_to_csv(
 
 
 # Visualisation functions
-
-
-def get_cmap(n, name="hsv"):
-    """Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
-    RGB color; the keyword argument name must be a standard mpl colormap name."""
-    return plt.cm.get_cmap(name, n)
 
 
 def my_obj_centre(obj):

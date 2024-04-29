@@ -3,9 +3,12 @@ from datetime import datetime
 import numpy as np
 import cv2
 import torch
+import matplotlib.pyplot as plt
 from tqdm import tqdm
+import os
+from pathlib import Path
 
-from mine import save_epoch_training_results, display_point_with_image_frame, my_obj_centre, get_cmap
+from mine import save_epoch_training_results, display_point_with_image_frame, my_obj_centre
 from models.utils.track4d_utils import (
     filter_moving_boxes_det,
     get_bbx_param,
@@ -14,14 +17,12 @@ from models.utils.track4d_utils import (
     filter_object_points,
     map_gt_objects,
 )
+
 from losses import *
 from models.track4d import Affinity
 from vod.configuration.file_locations import VodTrackLocations
 from vod.frame.data_loader import FrameDataLoader
 from vod.frame.transformations import FrameTransformMatrix
-import os
-from pathlib import Path
-import matplotlib.pyplot as plt
 
 
 def train_one_epoch(args, net, train_loader, opt, mode, ep):
@@ -84,7 +85,6 @@ def epoch(
     flow_met = dict()
 
     pbar = tqdm(enumerate(train_loader), total=len(train_loader))
-
     for i, data in pbar:
         if args.model == "track4d_radar":
             (
@@ -259,7 +259,7 @@ def epoch(
             for key, obj in objects.items():
                 objects_prev[key] = obj.clone().detach()
             mappings_prev = mappings_curr
-            if h is not None:
+            if h != None:
                 h = h.detach()
 
             if mode == "eval":
@@ -317,11 +317,10 @@ def epoch(
                     cor = np.asarray(bbox.get_box_points())
                     cors2.append(cor)
                     cor_lbl2.append(obj)
-                # TODO: NT: consider saving cor2 in a binary log
 
                 save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov)
 
-                """If display_images is True, display the point cloud and image frame side by side."""
+                # If display_images is True, display the point cloud and image frame side by side.
                 if display_images:
                     display_point_with_image_frame(
                         folder_results_vis, index, frame_data_0
@@ -356,6 +355,7 @@ def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
         marker=".",
         edgecolors="none",
     )
+
     cmap = get_cmap(len(objects))
     for i in range(len(objects)):
         key = list(objects.keys())[i]
@@ -371,7 +371,6 @@ def save_graph(cors2, folder_results_vis, index, objects, pc1, pc1_mov):
         # Calculating the new centre after swapping axes
         centre = my_obj_centre(objects[key][:, :3, :])[0]
         ax.text(centre[1], centre[0], str(key), alpha=0.7, size=8)
-
     for cor in cors2:
         cor = cor[[True, True, True, False, False, False, False, True], :]
         # Swapping the axes for line plots
@@ -590,6 +589,12 @@ def eval_motion_seg(pre, gt):
     seg_metric = {"acc": acc, "miou": miou, "sen": sen}
 
     return seg_metric
+
+
+def get_cmap(n, name="hsv"):
+    """Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+    RGB color; the keyword argument name must be a standard mpl colormap name."""
+    return plt.cm.get_cmap(name, n)
 
 
 def set_seed(seed=0):
