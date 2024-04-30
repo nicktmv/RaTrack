@@ -167,9 +167,6 @@ def display_point_with_image_frame(folder_results_vis, index, frame_data):
     pc_image = Image.open(pc_image_path)  # Open the image file
     pc_image_array = np.array(pc_image)  # Convert the image to an array
 
-    # Flip the point cloud image left to right
-    # pc_image_array = np.fliplr(pc_image_array)
-
     # Combine and display images
     combined_image = combine_images(pc_image_array, cv_image)
     cv2.imshow("Point Cloud and Image", cv2.cvtColor(combined_image, cv2.COLOR_RGB2BGR))
